@@ -25,7 +25,7 @@
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Argument.h"
-#include "llvm/IR/CallSite.h"
+// #include "llvm/IR/CallSite.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -37,8 +37,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
-#include "llvm/PassAnalysisSupport.h"
-#include "llvm/PassSupport.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/FileSystem.h"
 
 int __builtin_clz(unsigned int);
@@ -433,19 +432,17 @@ void InterProceduralRA<CGT>::MatchParametersAndReturnValues(
       continue;
     }
 
-    Instruction *caller = cast<Instruction>(Us);
+    CallBase *CS = cast<CallBase>(Us);
 
-    CallSite CS(caller);
-
-    if (!CS.isCallee(&U)) {
+    if (!CS->isCallee(&U)) {
       continue;
     }
 
     // Iterate over the real parameters and put them in the data structure
-    CallSite::arg_iterator AI;
-    CallSite::arg_iterator EI;
+    User::op_iterator AI;
+    User::op_iterator EI;
 
-    for (i = 0, AI = CS.arg_begin(), EI = CS.arg_end(); AI != EI; ++i, ++AI) {
+    for (i = 0, AI = CS->arg_begin(), EI = CS->arg_end(); AI != EI; ++i, ++AI) {
       parameters[i].second = *AI;
     }
 
@@ -468,7 +465,7 @@ void InterProceduralRA<CGT>::MatchParametersAndReturnValues(
     // Match return values
     if (!noReturn) {
       // Add caller instruction to the CG (it receives the return value)
-      to = G.addVarNode(caller);
+      to = G.addVarNode(CS);
 
       PhiOp *phiOp = new PhiOp(new BasicInterval(), to, nullptr);
 
@@ -2587,7 +2584,7 @@ void ConstraintGraph::buildValueBranchMap(const BranchInst *br) {
 
 void ConstraintGraph::buildValueMaps(const Function &F) {
   for (const BasicBlock &BB : F) {
-    const TerminatorInst *ti = BB.getTerminator();
+    const Instruction *ti = BB.getTerminator();
     const BranchInst *br = dyn_cast<BranchInst>(ti);
     const SwitchInst *sw = dyn_cast<SwitchInst>(ti);
 
@@ -3280,7 +3277,7 @@ void ConstraintGraph::print(const Function &F, raw_ostream &OS) const {
 void ConstraintGraph::printToFile(const Function &F,
                                   const std::string &FileName) {
   std::error_code ErrorInfo;
-  raw_fd_ostream file(FileName, ErrorInfo, sys::fs::F_Text);
+  raw_fd_ostream file(FileName, ErrorInfo, sys::fs::OF_Text);
 
   if (!file.has_error()) {
     print(F, file);
